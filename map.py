@@ -161,9 +161,129 @@ class Map:
     def getNeighbors(self, id):
         return self.graph[id]['neighbors']
 
+    def getNearestNodeForBuilding(self, building_id, source_node_id):
+        # Lấy danh sách các nodes của building
+        building_nodes = self.buildings[building_id]['properties']['nodes']
+        source_coords = self.getNodeCoordinateById(source_node_id)
+
+        # Tìm node gần nhất trong các nodes của building so với source_id
+        nearest_node = None
+        min_distance = float('inf')
+
+        for node_id in building_nodes:
+            node_id = str(node_id)
+            if node_id in self.graph:
+                target_coords = self.getNodeCoordinateById(node_id)
+                distance = haversine(source_coords[1], source_coords[0], target_coords[1], target_coords[0])
+                if distance < min_distance:
+                    min_distance = distance
+                    nearest_node = node_id
+
+        return nearest_node
+
+    def getNearestNodeInGraph(self, target_node_id):
+        """Tìm node gần nhất trong đồ thị cho một node cụ thể."""
+        target_coords = self.getNodeCoordinateById(target_node_id)
+        min_distance = float('inf')
+        nearest_node = None
+
+        for node_id in self.graph.keys():
+            if node_id != target_node_id and self.getNeighbors(node_id):  # Không xét chính node đích
+                graph_node_coords = self.getNodeCoordinateById(node_id)
+                distance = haversine(target_coords[1], target_coords[0], graph_node_coords[1], graph_node_coords[0])
+                if distance < min_distance:
+                    min_distance = distance
+                    nearest_node = node_id
+
+        return nearest_node
+
+    def addTemporaryConnection(self, node1, node2):
+        """Thêm kết nối tạm thời giữa hai nodes."""
+        if node1 not in self.graph:
+            self.graph[node1] = {'neighbors': []}
+        if node2 not in self.graph:
+            self.graph[node2] = {'neighbors': []}
+
+        # Kết nối hai nodes lại với nhau
+        self.graph[node1]['neighbors'].append(node2)
+        self.graph[node2]['neighbors'].append(node1)
+
+    def removeTemporaryConnection(self, node1, node2):
+        """Loại bỏ kết nối tạm thời giữa hai nodes."""
+        if node1 in self.graph and node2 in self.graph[node1]['neighbors']:
+            self.graph[node1]['neighbors'].remove(node2)
+        if node2 in self.graph and node1 in self.graph[node2]['neighbors']:
+            self.graph[node2]['neighbors'].remove(node1)
+
+
+class MapProblem(SearchProblem):
+    def __init__(self, map_instance, source_id, destination_id):
+        self.map = map_instance
+        self.source_id = source_id
+        self.destination_id = destination_id
+        super().__init__(initial_state=source_id)
+
+    def actions(self, state):
+        # Trả về danh sách các node láng giềng (hàng xóm) của node hiện tại
+        return self.map.getNeighbors(state)
+
+    def result(self, state, action):
+        # Trả về trạng thái mới sau khi di chuyển đến node láng giềng
+        return action
+
+    def is_goal(self, state):
+        # Kiểm tra xem node hiện tại có phải là điểm đích hay không
+        return state == self.destination_id
+
+    def heuristic(self, state):
+        # Sử dụng khoảng cách haversine giữa state hiện tại và điểm đích làm heuristic
+        current_coords = self.map.getNodeCoordinateById(state)
+        destination_coords = self.map.getNodeCoordinateById(self.destination_id)
+        return haversine(current_coords[1], current_coords[0], destination_coords[1], destination_coords[0])
+
 
 if __name__ == '__main__':
     map_instance = Map()
 
-    # Show the map
-    map_instance.showMap(map_instance.nodes, map_instance.coordinates)
+
+    # Xác định ID nút nguồn và ID tòa nhà đích
+    source_id = "2333139501"
+    building_id = "239828231"  # Tòa trung tâm
+
+    # Lấy node gần nhất của building từ source_id
+    destination_node = map_instance.getNearestNodeForBuilding(building_id, source_id)
+
+    if destination_node is None:
+        print(f"Không tìm thấy node nào của tòa nhà {building_id}")
+        exit()
+
+    # Tìm node gần nhất trong đồ thị so với destination_node
+    nearest_graph_node = map_instance.getNearestNodeInGraph(destination_node)
+
+    # Thêm kết nối tạm thời giữa destination_node và nearest_graph_node
+    map_instance.addTemporaryConnection(destination_node, nearest_graph_node)
+
+    # map_instance.showMap(map_instance.nodes, map_instance.coordinates)
+
+    try:
+        # Tạo đối tượng MapProblem với destination_node là đích
+        problem = MapProblem(map_instance, source_id, destination_node)
+
+        # Chạy thuật toán A* để tìm đường đi
+        result = astar(problem)
+
+        # Lấy đường đi từ kết quả
+        path = [step[1] for step in result.path()]  # Lấy danh sách các node trong đường đi
+
+        if path:
+            print(f"Đường đi từ node {source_id} đến node {destination_node}:")
+            print(path)
+        else:
+            print(f"Không tìm thấy đường đi từ node {source_id} đến node {destination_node}")
+            exit()
+
+        # Hiển thị đường đi trên bản đồ
+        map_instance.showMap(map_instance.nodes, map_instance.coordinates, path=path)
+    finally:
+        # Xóa kết nối tạm thời sau khi hoàn thành
+        map_instance.removeTemporaryConnection(destination_node, nearest_graph_node)
