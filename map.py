@@ -1,22 +1,41 @@
 import json
 import math
-
 from scipy.spatial import KDTree
-
+from simpleai.search import SearchProblem, astar
 import plotly.graph_objects as go
 import plotly.express as px
 import pandas as pd
-from simpleai.search import SearchProblem, astar
 
 
 def haversine(lat1, lon1, lat2, lon2):
-    # Haversine formula to calculate distance between two points
-    R = 6371  # Radius of the Earth in km
-    dlat = lat2 - lat1
-    dlon = lon2 - lon1
-    a = (pow(math.sin(dlat / 2), 2) +
-         math.cos(lat1) * math.cos(lat2) * pow(math.sin(dlon / 2), 2))
+    """
+        Tính khoảng cách giữa hai điểm trên bề mặt Trái Đất.
+
+        Tham số:
+        lat1, lon1: Vĩ độ và kinh độ của điểm thứ nhất (đơn vị: độ)
+        lat2, lon2: Vĩ độ và kinh độ của điểm thứ hai (đơn vị: độ)
+
+        Trả về:
+        Khoảng cách giữa hai điểm (đơn vị: km)
+        """
+    # Bán kính trung bình của Trái Đất theo km
+    R = 6371.0
+
+    # Chuyển đổi độ sang radian
+    lat1_rad = math.radians(lat1)
+    lon1_rad = math.radians(lon1)
+    lat2_rad = math.radians(lat2)
+    lon2_rad = math.radians(lon2)
+
+    # Hiệu số giữa các tọa độ
+    dlat = lat2_rad - lat1_rad
+    dlon = lon2_rad - lon1_rad
+
+    # Công thức Haversine
+    a = math.sin(dlat / 2) ** 2 + math.cos(lat1_rad) * math.cos(lat2_rad) * math.sin(dlon / 2) ** 2
     c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
+    # Tính khoảng cách
     distance = R * c
     return distance
 
@@ -30,9 +49,6 @@ class Map:
         self.loadMapData()
 
     def showMap(self, nodes, coordinates, path=None):
-        import plotly.graph_objects as go
-        import plotly.express as px
-        import pandas as pd
 
         # Your Mapbox access token
         mapbox_token = "pk.eyJ1IjoibG9jaHV1bmciLCJhIjoiY20zY2RqdmN0MjB5MDJqb2wxb3lhMnc2biJ9.E39GAN-RK5he-1HAYFIZUA"
@@ -245,9 +261,8 @@ class MapProblem(SearchProblem):
 if __name__ == '__main__':
     map_instance = Map()
 
-
     # Xác định ID nút nguồn và ID tòa nhà đích
-    source_id = "2333139501"
+    source_id = "5778630689"
     building_id = "239828231"  # Tòa trung tâm
 
     # Lấy node gần nhất của building từ source_id
