@@ -3,3 +3,4 @@ simpleai
 plotly
 pandas
 scipy
+pillow
