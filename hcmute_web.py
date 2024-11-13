@@ -1,7 +1,8 @@
 import streamlit as st
 from simpleai.search import astar
-from map import MapProblem, Map
 from streamlit_plotly_events import plotly_events
+
+from src.models import Map, MapProblem
 
 
 def main():

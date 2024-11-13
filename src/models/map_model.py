@@ -1,24 +1,12 @@
 import json
-import math
-from scipy.spatial import KDTree
-from simpleai.search import SearchProblem
-import plotly.graph_objects as go
-import plotly.express as px
+
 import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
+from scipy.spatial import KDTree
 
-
-def haversine(lat1, lon1, lat2, lon2):
-    R = 6371.0
-    lat1_rad = math.radians(lat1)
-    lon1_rad = math.radians(lon1)
-    lat2_rad = math.radians(lat2)
-    lon2_rad = math.radians(lon2)
-    dlat = lat2_rad - lat1_rad
-    dlon = lon2_rad - lon1_rad
-    a = math.sin(dlat / 2) ** 2 + math.cos(lat1_rad) * math.cos(lat2_rad) * math.sin(dlon / 2) ** 2
-    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
-    distance = R * c
-    return distance
+from src.config import MAPBOX_TOKEN, DEFAULT_ZOOM, DEFAULT_CENTER
+from src.utils.haversine import haversine
 
 
 class Map:
@@ -30,8 +18,7 @@ class Map:
         self.loadMapData()
 
     def createMapFigure(self, nodes, coordinates, path=None):
-        mapbox_token = "pk.eyJ1IjoibG9jaHV1bmciLCJhIjoiY20zY2RqdmN0MjB5MDJqb2wxb3lhMnc2biJ9.E39GAN-RK5he-1HAYFIZUA"
-        px.set_mapbox_access_token(mapbox_token)
+        px.set_mapbox_access_token(MAPBOX_TOKEN)
         mapData = []
         for i in range(len(nodes)):
             mapData.append([nodes[i], coordinates[i][0], coordinates[i][1]])
@@ -102,9 +89,9 @@ class Map:
             else:
                 zoom = 11
         else:
-            center_lat = 10.8510744
-            center_lon = 106.7736178
-            zoom = 15
+            center_lat = DEFAULT_CENTER['lat']
+            center_lon = DEFAULT_CENTER['lon']
+            zoom = DEFAULT_ZOOM
         fig.add_trace(
             go.Scattermapbox(
                 mode="markers",
@@ -121,7 +108,7 @@ class Map:
         )
         fig.update_layout(
             mapbox=dict(
-                accesstoken=mapbox_token,
+                accesstoken=MAPBOX_TOKEN,
                 style="open-street-map",
                 zoom=zoom,
                 center=dict(lat=center_lat, lon=center_lon)
@@ -206,25 +193,3 @@ class Map:
             self.graph[node1]['neighbors'].remove(node2)
         if node2 in self.graph and node1 in self.graph[node2]['neighbors']:
             self.graph[node2]['neighbors'].remove(node1)
-
-
-class MapProblem(SearchProblem):
-    def __init__(self, map_instance, source_id, destination_id):
-        self.map = map_instance
-        self.source_id = source_id
-        self.destination_id = destination_id
-        super().__init__(initial_state=source_id)
-
-    def actions(self, state):
-        return self.map.getNeighbors(state)
-
-    def result(self, state, action):
-        return action
-
-    def is_goal(self, state):
-        return state == self.destination_id
-
-    def heuristic(self, state):
-        current_coords = self.map.getNodeCoordinateById(state)
-        destination_coords = self.map.getNodeCoordinateById(self.destination_id)
-        return haversine(current_coords[1], current_coords[0], destination_coords[1], destination_coords[0])
