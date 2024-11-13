@@ -48,6 +48,94 @@ class Map:
         self.nodes = []
         self.loadMapData()
 
+    def createMapFigure(self, nodes, coordinates, path=None):
+        # Your Mapbox access token
+        mapbox_token = "pk.eyJ1IjoibG9jaHV1bmciLCJhIjoiY20zY2RqdmN0MjB5MDJqb2wxb3lhMnc2biJ9.E39GAN-RK5he-1HAYFIZUA"
+
+        px.set_mapbox_access_token(mapbox_token)
+
+        # Prepare map data
+        mapData = []
+        for i in range(len(nodes)):
+            mapData.append([nodes[i], coordinates[i][0], coordinates[i][1]])
+
+        df = pd.DataFrame(mapData, columns=['id', 'lat', 'lon'])
+
+        # Prepare edge data based on neighbors
+        edge_lats = []
+        edge_lons = []
+        for node_id, node_info in self.graph.items():
+            node_coord = self.getNodeCoordinateById(node_id)
+            for neighbor_id in node_info['neighbors']:
+                neighbor_coord = self.getNodeCoordinateById(neighbor_id)
+                # Add edge from node to its neighbor
+                edge_lats += [node_coord[1], neighbor_coord[1], None]
+                edge_lons += [node_coord[0], neighbor_coord[0], None]
+
+        # Create the figure
+        fig = go.Figure()
+
+        # Add edges as a Scattermapbox trace
+        fig.add_trace(
+            go.Scattermapbox(
+                mode="lines",
+                lon=edge_lons,
+                lat=edge_lats,
+                line=dict(width=2, color='blue'),
+                hoverinfo='none'
+            )
+        )
+
+        # If a path is provided, highlight it on the map
+        if path:
+            path_lats = []
+            path_lons = []
+            for i in range(len(path) - 1):
+                start_coord = self.getNodeCoordinateById(path[i])
+                end_coord = self.getNodeCoordinateById(path[i + 1])
+                path_lats += [start_coord[1], end_coord[1], None]
+                path_lons += [start_coord[0], end_coord[0], None]
+
+            # Add path as a separate Scattermapbox trace with a different color
+            fig.add_trace(
+                go.Scattermapbox(
+                    mode="lines",
+                    lon=path_lons,
+                    lat=path_lats,
+                    line=dict(width=4, color='red'),
+                    hoverinfo='none'
+                )
+            )
+
+        # Add nodes as a Scattermapbox trace with click events
+        fig.add_trace(
+            go.Scattermapbox(
+                mode="markers",
+                lon=df['lon'],
+                lat=df['lat'],
+                marker=go.scattermapbox.Marker(
+                    size=9,
+                    color='red'
+                ),
+                text=df['id'],
+                hoverinfo='text',
+                customdata=df['id'],  # Dùng customdata để lưu trữ id node
+            )
+        )
+
+        # Update layout with the Mapbox access token
+        fig.update_layout(
+            mapbox=dict(
+                accesstoken=mapbox_token,
+                style="open-street-map",
+                zoom=15,
+                center=dict(lat=10.8510744, lon=106.7736178)  # Focus vào trường ĐH Sư phạm Kỹ thuật
+            ),
+            margin={"r": 0, "t": 0, "l": 0, "b": 0}
+        )
+
+        return fig
+
     def showMap(self, nodes, coordinates, path=None):
 
         # Your Mapbox access token
@@ -262,7 +350,7 @@ if __name__ == '__main__':
     map_instance = Map()
 
     # Xác định ID nút nguồn và ID tòa nhà đích
-    source_id = "5778630689"
+    source_id = "5125105355"
     building_id = "239828231"  # Tòa trung tâm
 
     # Lấy node gần nhất của building từ source_id
@@ -272,10 +360,17 @@ if __name__ == '__main__':
         print(f"Không tìm thấy node nào của tòa nhà {building_id}")
         exit()
 
+    nearest_source_graph_node = None
+
+    if not map_instance.getNeighbors(source_id):
+        # Tạo cạnh giả giữa source_id và node gần nhất của đồ thị
+        nearest_source_graph_node = map_instance.getNearestNodeInGraph(source_id)
+        map_instance.addTemporaryConnection(source_id, nearest_source_graph_node)
+
     # Tìm node gần nhất trong đồ thị so với destination_node
     nearest_graph_node = map_instance.getNearestNodeInGraph(destination_node)
 
-    # Thêm kết nối tạm thời giữa destination_node và nearest_graph_node
+    # Thêm cạnh giả giữa destination_node và nearest_graph_node
     map_instance.addTemporaryConnection(destination_node, nearest_graph_node)
 
     # map_instance.showMap(map_instance.nodes, map_instance.coordinates)
@@ -302,3 +397,5 @@ if __name__ == '__main__':
     finally:
         # Xóa kết nối tạm thời sau khi hoàn thành
         map_instance.removeTemporaryConnection(destination_node, nearest_graph_node)
+        if nearest_source_graph_node:
+            map_instance.removeTemporaryConnection(source_id, nearest_source_graph_node)
